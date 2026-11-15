@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="受験日数">
+<title>受験カウントダウン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f4;--surface:#fff;--ink:#1d2733;--muted:#5d6b7a;--line:#d5dce3;
+  --tohoku:#2a7f62;--kyotsu:#7a5cc2;--musabi:#a8681c;--tama:#2f6fb5;--geidai:#b23a6b;
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171d;--surface:#1b222a;--ink:#e8edf2;--muted:#9aa7b4;--line:#2d3742;
+    --tohoku:#4fc19a;--kyotsu:#a994ea;--musabi:#e0a050;--tama:#6aa6ea;--geidai:#e87aa6;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12171d;--surface:#1b222a;--ink:#e8edf2;--muted:#9aa7b4;--line:#2d3742;
+  --tohoku:#4fc19a;--kyotsu:#a994ea;--musabi:#e0a050;--tama:#6aa6ea;--geidai:#e87aa6;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.1rem;font-weight:700;margin:0 0 14px;color:var(--muted)}
+.hero{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--c,var(--tama));border-radius:6px;padding:18px 18px 16px}
+.hero .sch{font-size:.85rem;color:var(--c,var(--muted));font-weight:700}
+.hero .ttl{font-size:1.15rem;font-weight:700;margin:2px 0 8px}
+.big{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.big .n{font-size:clamp(3.6rem,19vw,5.6rem);font-weight:700;line-height:1;letter-spacing:-.02em}
+.big .u{font-size:1.2rem;font-weight:500}
+.hms{font-size:1.25rem;font-variant-numeric:tabular-nums;color:var(--muted);margin-top:6px}
+.when{font-size:.85rem;color:var(--muted);margin-top:4px}
+.list{display:grid;gap:10px;margin-top:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--c);border-radius:6px;overflow:hidden}
+.card.done{opacity:.55}
+.head{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:1fr auto 18px;gap:10px;align-items:center;padding:14px;cursor:pointer;min-height:64px}
+.head:focus-visible{outline:2px solid var(--tama);outline-offset:-2px}
+.head .nm{font-weight:700;font-size:1.05rem}
+.head .dt{font-size:.8rem;color:var(--muted)}
+.head::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .2s;justify-self:center}
+.head[aria-expanded="true"]::after{transform:rotate(225deg)}
+.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.r b{font-size:1.9rem;line-height:1}
+.r span{font-size:.85rem;margin-left:2px}
+.r .z{font-size:.95rem;font-weight:700}
+.det{border-top:1px solid var(--line);padding:4px 14px 8px}
+.det[hidden]{display:none}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row.done{opacity:.5}
+.row .t{font-size:.92rem;font-weight:500}
+.row .d{font-size:.78rem;color:var(--muted)}
+.row .r b{font-size:1.25rem}
+.note{font-size:.78rem;color:var(--muted);margin-top:18px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>受験カウントダウン（試験日まで）</h1>
+  <section class="hero" id="hero" aria-live="off"></section>
+  <div class="list" id="list"></div>
+  <p class="note">大学名をタップすると、出願締切・合格発表・手続締切などの詳細と残り日数が開きます。時刻は日本時間です。試験日は0:00、出願・手続の締切は23:59（東北芸工の出願のみ16:00）を基準にしています。実際の時刻は募集要項で確認してください。藝大2次・多摩美・武蔵美は日割りが変わる場合があります。</p>
+</main>
+<script>
+const S={tohoku:["東北芸工","--tohoku"],kyotsu:["共通テスト","--kyotsu"],musabi:["武蔵美","--musabi"],tama:["多摩美","--tama"],geidai:["藝大","--geidai"]};
+// [school, title, start, end(optional), label]
+const E=[
+["tohoku","総合型選抜A方式 出願締切","2026-11-20T16:00","","11/20（金）16:00"],
+["tohoku","総合型選抜A方式 試験","2026-12-13T00:00","","12/13（日）"],
+["tohoku","総合型選抜A方式 合格発表","2026-12-23T10:00","","12/23（水）10:00"],
+["tohoku","入学手続 締切","2027-01-07T23:59","","1/7（木）"],
+["tama","一般 出願締切","2027-01-15T23:59","","1/15（金）"],
+["kyotsu","大学入学共通テスト","2027-01-16T00:00","2027-01-17T23:59","1/16（土）・17（日）"],
+["musabi","油絵専攻 出願締切","2027-01-16T23:59","","1/16（土）"],
+["geidai","油画専攻 出願締切","2027-02-03T23:59","","2/3（水）"],
+["musabi","油絵専攻 一般 試験","2027-02-05T00:00","2027-02-09T23:59","2/5（金）・6（土）・9（火）"],
+["tama","油画専攻 一般 試験","2027-02-10T00:00","2027-02-14T23:59","2/10（水）・13（土）・14（日）"],
+["musabi","合格発表","2027-02-22T00:00","","2/22（月）"],
+["tama","合格発表","2027-02-22T00:00","","2/22（月）"],
+["geidai","油画専攻 1次試験（実技）","2027-02-25T00:00","2027-02-25T23:59","2/25（木）"],
+["musabi","入学手続 締切","2027-03-01T23:59","","3/1（月）"],
+["tama","入学手続 締切","2027-03-01T23:59","","3/1（月）"],
+["geidai","油画専攻 2次試験（実技・面接）","2027-03-07T00:00","2027-03-09T23:59","3/7（日）・8（月）・9（火）"],
+["geidai","最終合格発表","2027-03-14T00:00","","3/14（日）"]
+].map(([k,t,s,e,l])=>({k,t,s:new Date(s+":00+09:00"),e:e?new Date(e+":59+09:00"):null,l}))
+ .sort((a,b)=>a.s-b.s);
+
+const M={
+tohoku:{s:"2026-12-13T00:00",e:"2026-12-13T23:59",l:"12/13（日）"},
+kyotsu:{s:"2027-01-16T00:00",e:"2027-01-17T23:59",l:"1/16（土）・17（日）"},
+musabi:{s:"2027-02-05T00:00",e:"2027-02-09T23:59",l:"2/5（金）・6（土）・9（火）"},
+tama:{s:"2027-02-10T00:00",e:"2027-02-14T23:59",l:"2/10（水）・13（土）・14（日）"},
+geidai1:{k:"geidai",name:"藝大 1次試験",s:"2027-02-25T00:00",e:"2027-02-25T23:59",l:"2/25（木）",f:x=>/出願|1次/.test(x.t)},
+geidai2:{k:"geidai",name:"藝大 2次試験",s:"2027-03-07T00:00",e:"2027-03-09T23:59",l:"3/7（日）・8（月）・9（火）",f:x=>/2次|最終/.test(x.t)}
+};
+const D=s=>new Date(s.length>16?s+"+09:00":s+":00+09:00");
+const SC=Object.keys(M).map(k=>({k:M[k].k||k,name:M[k].name||S[k][0],f:M[k].f||(()=>true),s:D(M[k].s),e:D(M[k].e.slice(0,16)+":59"),l:M[k].l})).sort((a,b)=>a.s-b.s);
+const $=id=>document.getElementById(id);
+const el=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n};
+const p2=n=>String(n).padStart(2,"0");
+function status(x){const n=Date.now();const end=x.e||x.s;if(n>end)return"done";if(x.e&&n>=x.s)return"live";return"future"}
+function setCount(R,x){
+  R.textContent="";const st=status(x);
+  if(st==="done"){R.appendChild(el("span","z","終了"));return st}
+  if(st==="live"){R.appendChild(el("span","z","実施中"));return st}
+  const d=x.s-Date.now(),days=Math.floor(d/864e5);
+  if(days>=1){R.append(el("span",null,"あと"),el("b",null,days),el("span",null,"日"))}
+  else{R.append(el("span",null,"あと"),el("b",null,Math.floor(d/36e5)),el("span",null,"時間"))}
+  return st;
+}
+const live=[];
+function build(){
+  const ul=$("list");
+  SC.forEach(sc=>{
+    const card=el("div","card");card.style.setProperty("--c",`var(${S[sc.k][1]})`);
+    const head=el("button","head");head.type="button";head.setAttribute("aria-expanded","false");
+    const L=el("div");L.append(el("div","nm",sc.name),el("div","dt","試験日："+sc.l));
+    const R=el("div","r");head.append(L,R);
+    const det=el("div","det");det.hidden=true;
+    head.onclick=()=>{const o=head.getAttribute("aria-expanded")==="true";head.setAttribute("aria-expanded",!o);det.hidden=o};
+    E.filter(x=>x.k===sc.k&&sc.f(x)).forEach(x=>{
+      const row=el("div","row");const t=el("div");t.append(el("div","t",x.t),el("div","d",x.l));
+      const r=el("div","r");row.append(t,r);det.appendChild(row);live.push({x,r,row});
+    });
+    card.append(head,det);ul.appendChild(card);live.push({x:sc,r:R,card});
+  });
+}
+function tick(){
+  live.forEach(o=>{const st=setCount(o.r,o.x);(o.card||o.row).classList.toggle("done",st==="done")});
+  const next=SC.find(x=>status(x)!=="done"),hero=$("hero");hero.textContent="";
+  if(!next){hero.appendChild(el("div","ttl","すべての試験が終了しました"));return}
+  hero.style.setProperty("--c",`var(${S[next.k][1]})`);
+  const lv=status(next)==="live";
+  hero.append(el("div","sch","次の試験"),el("div","ttl",next.name));
+  if(lv){hero.appendChild(el("div","hms","いま試験期間中です"))}
+  else{
+    const d=next.s-Date.now(),days=Math.floor(d/864e5),h=Math.floor(d%864e5/36e5),m=Math.floor(d%36e5/6e4),s=Math.floor(d%6e4/1e3);
+    const big=el("div","big");big.append(el("span","n",days),el("span","u","日"));
+    hero.append(big,el("div","hms",`${p2(h)}時間 ${p2(m)}分 ${p2(s)}秒`));
+  }
+  hero.appendChild(el("div","when","試験日："+next.l));
+}
+build();tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
